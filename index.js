@@ -1,5 +1,8 @@
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
+const fs = require("fs");
+const multer = require("multer");
 require("dotenv").config();
 
 const connectDB = require("./database/db");
@@ -44,6 +47,24 @@ app.use(
   })
 );
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir);
+}
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/');
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + '-' + Math.round(Math.random() * 1e9) + path.extname(file.originalname));
+  }
+});
+const upload = multer({ storage: storage });
 
 app.get("/api/health", (_req, res) => {
   res.status(200).json({ ok: true, message: "Server is running" });
@@ -72,6 +93,251 @@ app.post("/api/contacts", async (req, res) => {
     });
   }
 });
+
+const authRouter = require('./routes/auth').router;
+app.use('/api/auth', authRouter);
+
+const Inquiry = require("./models/Inquiry");
+const Chatbot = require("./models/Chatbot");
+
+app.post("/api/inquiries", async (req, res) => {
+  try {
+    const { name, email, service, budget, address, message } = req.body;
+
+    const inquiry = await Inquiry.create({ name, email, service, budget, address, message });
+
+    res.status(201).json({
+      success: true,
+      message: "Inquiry submitted successfully",
+      id: inquiry._id,
+    });
+  } catch (error) {
+    if (error.name === "ValidationError") {
+      const errors = Object.values(error.errors).map((item) => item.message);
+      return res.status(400).json({ success: false, message: errors[0], errors });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong while submitting the inquiry",
+    });
+  }
+});
+
+// Get all inquiries
+app.get("/api/inquiries", async (req, res) => {
+  try {
+    const inquiries = await Inquiry.find().sort({ createdAt: -1 });
+    res.status(200).json({ success: true, data: inquiries });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Failed to fetch inquiries" });
+  }
+});
+
+// Check inquiry status by email
+app.get("/api/inquiries/check", async (req, res) => {
+  try {
+    const rawEmail = req.query.email;
+    if (!rawEmail) {
+      return res.status(400).json({ success: false, message: "Email is required" });
+    }
+    
+    const email = rawEmail.trim();
+    // Case-insensitive regex match
+    const inquiry = await Inquiry.findOne({ email: { $regex: new RegExp(`^${email}$`, "i") } }).sort({ createdAt: -1 });
+    
+    if (!inquiry) {
+      return res.status(200).json({ success: true, status: "None" });
+    }
+
+    const chatbotRecord = await Chatbot.findOne({ email: { $regex: new RegExp(`^${email}$`, "i") } });
+
+    res.status(200).json({ success: true, status: inquiry.status, chatHistory: chatbotRecord ? chatbotRecord.messages : [] });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Failed to check inquiry status" });
+  }
+});
+
+// Add message to chat history
+app.put("/api/inquiries/chat", async (req, res) => {
+  try {
+    const { email, message } = req.body;
+    if (!email || !message) {
+      return res.status(400).json({ success: false, message: "Email and message are required" });
+    }
+
+    // Upsert the chatbot record
+    const chatbotRecord = await Chatbot.findOneAndUpdate(
+      { email },
+      { $push: { messages: message } },
+      { new: true, upsert: true }
+    );
+
+    res.status(200).json({ success: true, data: chatbotRecord.messages });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Failed to save chat message" });
+  }
+});
+
+// Update inquiry status
+app.put("/api/inquiries/:id/status", async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!["Pending", "Approved", "Declined"].includes(status)) {
+      return res.status(400).json({ success: false, message: "Invalid status" });
+    }
+
+    const inquiry = await Inquiry.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    );
+
+    if (!inquiry) {
+      return res.status(404).json({ success: false, message: "Inquiry not found" });
+    }
+
+    res.status(200).json({ success: true, data: inquiry });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Failed to update inquiry status" });
+  }
+});
+
+const Project = require("./models/Project");
+
+// Get all projects
+app.get("/api/projects", async (req, res) => {
+  try {
+    const projects = await Project.find().sort({ createdAt: -1 });
+    res.status(200).json({ success: true, data: projects });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Failed to fetch projects" });
+  }
+});
+
+// Create a new project
+app.post("/api/projects", upload.single('image'), async (req, res) => {
+  try {
+    const projectData = { ...req.body };
+    if (req.file) {
+      projectData.image = `/uploads/${req.file.filename}`;
+    }
+    
+    // Parse technologies if it comes as a comma-separated string from form-data
+    if (typeof projectData.technologies === 'string') {
+      try {
+        projectData.technologies = JSON.parse(projectData.technologies);
+      } catch (e) {
+        projectData.technologies = projectData.technologies.split(',').map(t => t.trim());
+      }
+    }
+
+    const project = await Project.create(projectData);
+    res.status(201).json({ success: true, data: project });
+  } catch (error) {
+    if (error.name === "ValidationError") {
+      const errors = Object.values(error.errors).map((item) => item.message);
+      return res.status(400).json({ success: false, message: errors[0], errors });
+    }
+    res.status(500).json({ success: false, message: "Failed to create project" });
+  }
+});
+
+// Delete a project
+app.delete("/api/projects/:id", async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    if (!project) {
+      return res.status(404).json({ success: false, message: "Project not found" });
+    }
+    await project.deleteOne();
+    res.status(200).json({ success: true, message: "Project deleted" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Failed to delete project" });
+  }
+});
+
+// Update a project
+app.put("/api/projects/:id", upload.single('image'), async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    if (!project) {
+      return res.status(404).json({ success: false, message: "Project not found" });
+    }
+
+    const projectData = { ...req.body };
+    if (req.file) {
+      projectData.image = `/uploads/${req.file.filename}`;
+    }
+
+    if (typeof projectData.technologies === 'string') {
+      try {
+        projectData.technologies = JSON.parse(projectData.technologies);
+      } catch (e) {
+        projectData.technologies = projectData.technologies.split(',').map(t => t.trim());
+      }
+    }
+
+    const updatedProject = await Project.findByIdAndUpdate(req.params.id, projectData, {
+      new: true,
+      runValidators: true,
+    });
+
+    res.status(200).json({ success: true, data: updatedProject });
+  } catch (error) {
+    if (error.name === "ValidationError") {
+      const errors = Object.values(error.errors).map((item) => item.message);
+      return res.status(400).json({ success: false, message: errors[0], errors });
+    }
+    res.status(500).json({ success: false, message: "Failed to update project" });
+  }
+});
+
+const HomeProfile = require("./models/HomeProfile");
+
+// Get home profile (images)
+app.get("/api/home-profile", async (req, res) => {
+  try {
+    let profile = await HomeProfile.findOne();
+    if (!profile) {
+      profile = await HomeProfile.create({});
+    }
+    res.status(200).json({ success: true, data: profile });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Failed to fetch home profile" });
+  }
+});
+
+// Update home profile
+app.put("/api/home-profile", upload.fields([
+  { name: 'smallImage', maxCount: 1 }, 
+  { name: 'largeImage', maxCount: 1 },
+  { name: 'aboutImage', maxCount: 1 }
+]), async (req, res) => {
+  try {
+    let profile = await HomeProfile.findOne();
+    if (!profile) {
+      profile = await HomeProfile.create({});
+    }
+
+    if (req.files && req.files.smallImage && req.files.smallImage[0]) {
+      profile.smallImage = `/uploads/${req.files.smallImage[0].filename}`;
+    }
+    if (req.files && req.files.largeImage && req.files.largeImage[0]) {
+      profile.largeImage = `/uploads/${req.files.largeImage[0].filename}`;
+    }
+    if (req.files && req.files.aboutImage && req.files.aboutImage[0]) {
+      profile.aboutImage = `/uploads/${req.files.aboutImage[0].filename}`;
+    }
+
+    await profile.save();
+    
+    res.status(200).json({ success: true, data: profile });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Failed to update home profile" });
+  }
+});
+
 
 async function startServer() {
   try {
