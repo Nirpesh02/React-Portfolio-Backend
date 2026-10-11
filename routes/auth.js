@@ -5,6 +5,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const Admin = require('../models/Admin');
+const HomeProfile = require('../models/HomeProfile');
 const PasswordResetAttempt = require('../models/PasswordResetAttempt');
 
 const router = express.Router();
@@ -112,6 +113,18 @@ router.put('/profile', authMiddleware, upload.single('avatar'), async (req, res)
 
     if (req.file) {
       admin.avatar = `/uploads/${req.file.filename}`;
+
+      // Keep HomeProfile smallImage in sync
+      try {
+        let homeProfile = await HomeProfile.findOne();
+        if (!homeProfile) {
+          homeProfile = await HomeProfile.create({});
+        }
+        homeProfile.smallImage = admin.avatar;
+        await homeProfile.save();
+      } catch (err) {
+        console.error("HomeProfile sync error:", err);
+      }
     }
 
     await admin.save();
