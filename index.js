@@ -315,7 +315,14 @@ app.put("/api/projects/:id", upload.single('image'), async (req, res) => {
   }
 });
 
+const Admin = require("./models/Admin");
 const HomeProfile = require("./models/HomeProfile");
+
+// Multer memory storage for HomeProfile images
+const uploadMemory = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }
+});
 
 // Get home profile (images)
 app.get("/api/home-profile", async (req, res) => {
@@ -324,14 +331,30 @@ app.get("/api/home-profile", async (req, res) => {
     if (!profile) {
       profile = await HomeProfile.create({});
     }
-    res.status(200).json({ success: true, data: profile });
+
+    const cleanUrl = (url, fallback) => {
+      if (!url) return fallback;
+      if (url.startsWith('/uploads/')) {
+        const filePath = path.join(__dirname, url);
+        if (!fs.existsSync(filePath)) return fallback;
+      }
+      return url;
+    };
+
+    const data = {
+      smallImage: cleanUrl(profile.smallImage, "/images/project4.jpg"),
+      largeImage: cleanUrl(profile.largeImage, "https://tse3.mm.bing.net/th/id/OIP.bA_6zy8pfuPWahLUeHiQhAHaJ4?r=0&rs=1&pid=ImgDetMain&o=7&rm=3"),
+      aboutImage: cleanUrl(profile.aboutImage, "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&q=80"),
+    };
+
+    res.status(200).json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: "Failed to fetch home profile" });
   }
 });
 
 // Update home profile
-app.put("/api/home-profile", upload.fields([
+app.put("/api/home-profile", uploadMemory.fields([
   { name: 'smallImage', maxCount: 1 }, 
   { name: 'largeImage', maxCount: 1 },
   { name: 'aboutImage', maxCount: 1 }
@@ -343,13 +366,28 @@ app.put("/api/home-profile", upload.fields([
     }
 
     if (req.files && req.files.smallImage && req.files.smallImage[0]) {
-      profile.smallImage = `/uploads/${req.files.smallImage[0].filename}`;
+      const file = req.files.smallImage[0];
+      const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+      profile.smallImage = base64;
+
+      // Sync with Admin avatar
+      try {
+        let admin = await Admin.findOne();
+        if (admin) {
+          admin.avatar = base64;
+          await admin.save();
+        }
+      } catch (e) {
+        console.error("Failed to sync admin avatar", e);
+      }
     }
     if (req.files && req.files.largeImage && req.files.largeImage[0]) {
-      profile.largeImage = `/uploads/${req.files.largeImage[0].filename}`;
+      const file = req.files.largeImage[0];
+      profile.largeImage = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
     }
     if (req.files && req.files.aboutImage && req.files.aboutImage[0]) {
-      profile.aboutImage = `/uploads/${req.files.aboutImage[0].filename}`;
+      const file = req.files.aboutImage[0];
+      profile.aboutImage = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
     }
 
     await profile.save();

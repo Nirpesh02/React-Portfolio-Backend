@@ -17,16 +17,11 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Multer storage for admin avatar
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/');
-  },
-  filename: function (req, file, cb) {
-    cb(null, 'admin-' + Date.now() + '-' + Math.round(Math.random() * 1e9) + path.extname(file.originalname));
-  }
+// Multer memory storage for admin avatar (stores Base64 in MongoDB to survive Render restarts)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }
 });
-const upload = multer({ storage });
 
 // Middleware to verify JWT
 const authMiddleware = (req, res, next) => {
@@ -85,13 +80,22 @@ router.get('/profile', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Admin profile not found' });
     }
 
+    let avatar = admin.avatar || "";
+    // If avatar is a legacy /uploads path that no longer exists on Render disk, ignore it
+    if (avatar.startsWith('/uploads/')) {
+      const filePath = path.join(__dirname, '..', avatar);
+      if (!fs.existsSync(filePath)) {
+        avatar = "";
+      }
+    }
+
     res.status(200).json({
       success: true,
       data: {
         id: admin._id,
         email: admin.email,
         name: admin.name || "Nir P Esh",
-        avatar: admin.avatar || ""
+        avatar: avatar
       }
     });
   } catch (error) {
@@ -112,15 +116,17 @@ router.put('/profile', authMiddleware, upload.single('avatar'), async (req, res)
     }
 
     if (req.file) {
-      admin.avatar = `/uploads/${req.file.filename}`;
+      const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+      admin.avatar = base64Image;
 
-      // Keep HomeProfile smallImage in sync
+      // Keep HomeProfile smallImage and largeImage in sync
       try {
         let homeProfile = await HomeProfile.findOne();
         if (!homeProfile) {
           homeProfile = await HomeProfile.create({});
         }
-        homeProfile.smallImage = admin.avatar;
+        homeProfile.smallImage = base64Image;
+        homeProfile.largeImage = base64Image;
         await homeProfile.save();
       } catch (err) {
         console.error("HomeProfile sync error:", err);
