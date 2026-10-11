@@ -9,6 +9,14 @@ const adminSchema = new mongoose.Schema({
   password: {
     type: String,
     required: true
+  },
+  name: {
+    type: String,
+    default: "Nir P Esh"
+  },
+  avatar: {
+    type: String,
+    default: ""
   }
 }, { timestamps: true });
 

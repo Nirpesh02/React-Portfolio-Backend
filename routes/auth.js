@@ -1,11 +1,31 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const Admin = require('../models/Admin');
 const PasswordResetAttempt = require('../models/PasswordResetAttempt');
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_for_development';
+
+// Ensure uploads folder exists
+const uploadsDir = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Multer storage for admin avatar
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/');
+  },
+  filename: function (req, file, cb) {
+    cb(null, 'admin-' + Date.now() + '-' + Math.round(Math.random() * 1e9) + path.extname(file.originalname));
+  }
+});
+const upload = multer({ storage });
 
 // Middleware to verify JWT
 const authMiddleware = (req, res, next) => {
@@ -30,7 +50,9 @@ const seedAdmin = async () => {
       const hashedPassword = await bcrypt.hash('Nepal123', salt);
       await Admin.create({
         email: 'nirpeshdhungel7@gmail.com',
-        password: hashedPassword
+        password: hashedPassword,
+        name: 'Nir P Esh',
+        avatar: ''
       });
       console.log('Admin user seeded');
     }
@@ -39,6 +61,75 @@ const seedAdmin = async () => {
   }
 };
 seedAdmin();
+
+// Get Admin Profile
+router.get('/profile', async (req, res) => {
+  try {
+    let admin = null;
+    const token = req.header('Authorization')?.split(' ')[1];
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        admin = await Admin.findById(decoded.id).select('-password');
+      } catch (e) {
+        // fallback
+      }
+    }
+    
+    if (!admin) {
+      admin = await Admin.findOne().select('-password');
+    }
+
+    if (!admin) {
+      return res.status(404).json({ success: false, message: 'Admin profile not found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        id: admin._id,
+        email: admin.email,
+        name: admin.name || "Nir P Esh",
+        avatar: admin.avatar || ""
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Update Admin Profile (name & avatar)
+router.put('/profile', authMiddleware, upload.single('avatar'), async (req, res) => {
+  try {
+    const admin = await Admin.findById(req.adminId);
+    if (!admin) {
+      return res.status(404).json({ success: false, message: 'Admin not found' });
+    }
+
+    if (req.body.name && req.body.name.trim()) {
+      admin.name = req.body.name.trim();
+    }
+
+    if (req.file) {
+      admin.avatar = `/uploads/${req.file.filename}`;
+    }
+
+    await admin.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: {
+        id: admin._id,
+        email: admin.email,
+        name: admin.name || "Nir P Esh",
+        avatar: admin.avatar || ""
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to update profile' });
+  }
+});
 
 // Login
 router.post('/login', async (req, res) => {
