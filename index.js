@@ -347,8 +347,12 @@ app.get("/api/home-profile", async (req, res) => {
       effectiveLarge = "";
     }
 
+    // Remove legacy smallImage from database if present
+    if (profile.smallImage !== undefined) {
+      await HomeProfile.updateMany({}, { $unset: { smallImage: "" } });
+    }
+
     const data = {
-      smallImage: cleanUrl(profile.smallImage, ""),
       largeImage: cleanUrl(effectiveLarge, ""),
       aboutImage: cleanUrl(profile.aboutImage, "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&q=80"),
     };
@@ -361,7 +365,6 @@ app.get("/api/home-profile", async (req, res) => {
 
 // Update home profile
 app.put("/api/home-profile", uploadMemory.fields([
-  { name: 'smallImage', maxCount: 1 }, 
   { name: 'largeImage', maxCount: 1 },
   { name: 'aboutImage', maxCount: 1 }
 ]), async (req, res) => {
@@ -369,12 +372,6 @@ app.put("/api/home-profile", uploadMemory.fields([
     let profile = await HomeProfile.findOne();
     if (!profile) {
       profile = await HomeProfile.create({});
-    }
-
-    if (req.files && req.files.smallImage && req.files.smallImage[0]) {
-      const file = req.files.smallImage[0];
-      const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-      profile.smallImage = base64;
     }
     if (req.files && req.files.largeImage && req.files.largeImage[0]) {
       const file = req.files.largeImage[0];
