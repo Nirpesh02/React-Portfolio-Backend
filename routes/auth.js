@@ -111,7 +111,8 @@ router.get('/profile', async (req, res) => {
         linkedin: admin.linkedin || "",
         twitter: admin.twitter || "",
         website: admin.website || "",
-        phone: admin.phone || ""
+        phone: admin.phone || "",
+        interests: admin.interests && admin.interests.length > 0 ? admin.interests : ["🎮 Gaming", "🎤 Singing", "🎬 Entertainment", "💻 Coding"]
       }
     });
   } catch (error) {
@@ -119,7 +120,7 @@ router.get('/profile', async (req, res) => {
   }
 });
 
-// Update Admin Profile (name, avatar, bio, title, location, social links)
+// Update Admin Profile (name, email, avatar, bio, title, location, phone, social links, interests)
 router.put('/profile', authMiddleware, upload.single('avatar'), async (req, res) => {
   try {
     const admin = await Admin.findById(req.adminId);
@@ -129,6 +130,9 @@ router.put('/profile', authMiddleware, upload.single('avatar'), async (req, res)
 
     if (req.body.name && req.body.name.trim()) {
       admin.name = req.body.name.trim();
+    }
+    if (req.body.email && req.body.email.trim()) {
+      admin.email = req.body.email.trim().toLowerCase();
     }
     if (req.body.title !== undefined) {
       admin.title = req.body.title.trim();
@@ -157,6 +161,15 @@ router.put('/profile', authMiddleware, upload.single('avatar'), async (req, res)
     if (req.body.phone !== undefined) {
       admin.phone = req.body.phone.trim();
     }
+    if (req.body.interests !== undefined) {
+      try {
+        admin.interests = typeof req.body.interests === 'string'
+          ? JSON.parse(req.body.interests)
+          : req.body.interests;
+      } catch (e) {
+        admin.interests = Array.isArray(req.body.interests) ? req.body.interests : [];
+      }
+    }
 
     if (req.file) {
       const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
@@ -181,7 +194,8 @@ router.put('/profile', authMiddleware, upload.single('avatar'), async (req, res)
         linkedin: admin.linkedin || "",
         twitter: admin.twitter || "",
         website: admin.website || "",
-        phone: admin.phone || ""
+        phone: admin.phone || "",
+        interests: admin.interests || []
       }
     });
   } catch (error) {

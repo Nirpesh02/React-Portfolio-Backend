@@ -53,6 +53,10 @@ const adminSchema = new mongoose.Schema({
   phone: {
     type: String,
     default: ""
+  },
+  interests: {
+    type: [String],
+    default: ["🎮 Gaming", "🎤 Singing", "🎬 Entertainment", "💻 Coding"]
   }
 }, { timestamps: true });
 
