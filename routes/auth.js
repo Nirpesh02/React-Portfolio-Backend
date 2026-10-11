@@ -20,7 +20,7 @@ if (!fs.existsSync(uploadsDir)) {
 // Multer memory storage for admin avatar (stores Base64 in MongoDB to survive Render restarts)
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }
+  limits: { fileSize: 100 * 1024 * 1024 }
 });
 
 // Middleware to verify JWT
