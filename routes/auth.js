@@ -37,10 +37,10 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
-// Seed admin user (Runs once)
+// Seed admin user (Runs once if no admin exists)
 const seedAdmin = async () => {
   try {
-    const adminExists = await Admin.findOne({ email: 'nirpeshdhungel7@gmail.com' });
+    const adminExists = await Admin.findOne();
     if (!adminExists) {
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash('Nepal123', salt);
@@ -90,11 +90,6 @@ router.get('/profile', async (req, res) => {
     }
 
     let name = admin.name || "NIRPESH";
-    if (name.toLowerCase() === "nir p esh" || name.toLowerCase() === "nir p esh.") {
-      name = "NIRPESH";
-      admin.name = "NIRPESH";
-      await admin.save();
-    }
 
     res.status(200).json({
       success: true,
@@ -177,6 +172,23 @@ router.put('/profile', authMiddleware, upload.single('avatar'), async (req, res)
     }
 
     await admin.save();
+
+    // Ensure all admin records stay synchronized if there's more than 1
+    await Admin.updateMany({ _id: { $ne: admin._id } }, {
+      name: admin.name,
+      email: admin.email,
+      avatar: admin.avatar,
+      title: admin.title,
+      bio: admin.bio,
+      location: admin.location,
+      availability: admin.availability,
+      phone: admin.phone,
+      interests: admin.interests,
+      github: admin.github,
+      linkedin: admin.linkedin,
+      twitter: admin.twitter,
+      website: admin.website
+    });
 
     res.status(200).json({
       success: true,
