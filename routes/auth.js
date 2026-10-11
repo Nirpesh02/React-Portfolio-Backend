@@ -102,7 +102,16 @@ router.get('/profile', async (req, res) => {
         id: admin._id,
         email: admin.email,
         name: name,
-        avatar: avatar
+        avatar: avatar,
+        title: admin.title || "Full Stack Developer",
+        bio: admin.bio || "Passionate full-stack developer dedicated to building responsive, scalable, and user-friendly digital experiences.",
+        location: admin.location || "Remote / Nepal",
+        availability: admin.availability || "Available for new projects",
+        github: admin.github || "",
+        linkedin: admin.linkedin || "",
+        twitter: admin.twitter || "",
+        website: admin.website || "",
+        phone: admin.phone || ""
       }
     });
   } catch (error) {
@@ -110,7 +119,7 @@ router.get('/profile', async (req, res) => {
   }
 });
 
-// Update Admin Profile (name & avatar)
+// Update Admin Profile (name, avatar, bio, title, location, social links)
 router.put('/profile', authMiddleware, upload.single('avatar'), async (req, res) => {
   try {
     const admin = await Admin.findById(req.adminId);
@@ -120,6 +129,33 @@ router.put('/profile', authMiddleware, upload.single('avatar'), async (req, res)
 
     if (req.body.name && req.body.name.trim()) {
       admin.name = req.body.name.trim();
+    }
+    if (req.body.title !== undefined) {
+      admin.title = req.body.title.trim();
+    }
+    if (req.body.bio !== undefined) {
+      admin.bio = req.body.bio.trim();
+    }
+    if (req.body.location !== undefined) {
+      admin.location = req.body.location.trim();
+    }
+    if (req.body.availability !== undefined) {
+      admin.availability = req.body.availability.trim();
+    }
+    if (req.body.github !== undefined) {
+      admin.github = req.body.github.trim();
+    }
+    if (req.body.linkedin !== undefined) {
+      admin.linkedin = req.body.linkedin.trim();
+    }
+    if (req.body.twitter !== undefined) {
+      admin.twitter = req.body.twitter.trim();
+    }
+    if (req.body.website !== undefined) {
+      admin.website = req.body.website.trim();
+    }
+    if (req.body.phone !== undefined) {
+      admin.phone = req.body.phone.trim();
     }
 
     if (req.file) {
@@ -136,7 +172,16 @@ router.put('/profile', authMiddleware, upload.single('avatar'), async (req, res)
         id: admin._id,
         email: admin.email,
         name: admin.name || "NIRPESH",
-        avatar: admin.avatar || ""
+        avatar: admin.avatar || "",
+        title: admin.title || "Full Stack Developer",
+        bio: admin.bio || "",
+        location: admin.location || "Remote / Nepal",
+        availability: admin.availability || "Available for new projects",
+        github: admin.github || "",
+        linkedin: admin.linkedin || "",
+        twitter: admin.twitter || "",
+        website: admin.website || "",
+        phone: admin.phone || ""
       }
     });
   } catch (error) {

@@ -17,6 +17,42 @@ const adminSchema = new mongoose.Schema({
   avatar: {
     type: String,
     default: ""
+  },
+  title: {
+    type: String,
+    default: "Full Stack Developer"
+  },
+  bio: {
+    type: String,
+    default: "Passionate full-stack developer dedicated to building responsive, scalable, and user-friendly digital experiences."
+  },
+  location: {
+    type: String,
+    default: "Remote / Nepal"
+  },
+  availability: {
+    type: String,
+    default: "Available for new projects"
+  },
+  github: {
+    type: String,
+    default: ""
+  },
+  linkedin: {
+    type: String,
+    default: ""
+  },
+  twitter: {
+    type: String,
+    default: ""
+  },
+  website: {
+    type: String,
+    default: ""
+  },
+  phone: {
+    type: String,
+    default: ""
   }
 }, { timestamps: true });
 
