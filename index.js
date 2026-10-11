@@ -332,6 +332,9 @@ app.get("/api/home-profile", async (req, res) => {
       profile = await HomeProfile.create({});
     }
 
+    let admin = await Admin.findOne();
+    const adminAvatar = admin && admin.avatar ? admin.avatar : "";
+
     const cleanUrl = (url, fallback) => {
       if (!url) return fallback;
       if (url.startsWith('/uploads/')) {
@@ -341,9 +344,19 @@ app.get("/api/home-profile", async (req, res) => {
       return url;
     };
 
+    let effectiveLarge = profile.largeImage;
+    if (!effectiveLarge || effectiveLarge.includes("bing.net")) {
+      effectiveLarge = adminAvatar || profile.smallImage || "";
+    }
+
+    let effectiveSmall = profile.smallImage;
+    if (!effectiveSmall || effectiveSmall.startsWith("/images/")) {
+      effectiveSmall = adminAvatar || effectiveLarge || "";
+    }
+
     const data = {
-      smallImage: cleanUrl(profile.smallImage, "/images/project4.jpg"),
-      largeImage: cleanUrl(profile.largeImage, "https://tse3.mm.bing.net/th/id/OIP.bA_6zy8pfuPWahLUeHiQhAHaJ4?r=0&rs=1&pid=ImgDetMain&o=7&rm=3"),
+      smallImage: cleanUrl(effectiveSmall, adminAvatar || ""),
+      largeImage: cleanUrl(effectiveLarge, adminAvatar || ""),
       aboutImage: cleanUrl(profile.aboutImage, "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&q=80"),
     };
 

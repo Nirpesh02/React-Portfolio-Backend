@@ -47,7 +47,7 @@ const seedAdmin = async () => {
       await Admin.create({
         email: 'nirpeshdhungel7@gmail.com',
         password: hashedPassword,
-        name: 'Nir P Esh',
+        name: 'NIRPESH',
         avatar: ''
       });
       console.log('Admin user seeded');
@@ -89,12 +89,19 @@ router.get('/profile', async (req, res) => {
       }
     }
 
+    let name = admin.name || "NIRPESH";
+    if (name.toLowerCase() === "nir p esh" || name.toLowerCase() === "nir p esh.") {
+      name = "NIRPESH";
+      admin.name = "NIRPESH";
+      await admin.save();
+    }
+
     res.status(200).json({
       success: true,
       data: {
         id: admin._id,
         email: admin.email,
-        name: admin.name || "Nir P Esh",
+        name: name,
         avatar: avatar
       }
     });
@@ -141,7 +148,7 @@ router.put('/profile', authMiddleware, upload.single('avatar'), async (req, res)
       data: {
         id: admin._id,
         email: admin.email,
-        name: admin.name || "Nir P Esh",
+        name: admin.name || "NIRPESH",
         avatar: admin.avatar || ""
       }
     });

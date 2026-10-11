@@ -12,7 +12,7 @@ const adminSchema = new mongoose.Schema({
   },
   name: {
     type: String,
-    default: "Nir P Esh"
+    default: "NIRPESH"
   },
   avatar: {
     type: String,
