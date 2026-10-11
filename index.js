@@ -124,11 +124,28 @@ app.post("/api/inquiries", async (req, res) => {
   }
 });
 
-// Get all inquiries
+// Get all inquiries (enriched with chat history from Chatbot collection)
 app.get("/api/inquiries", async (req, res) => {
   try {
-    const inquiries = await Inquiry.find().sort({ createdAt: -1 });
-    res.status(200).json({ success: true, data: inquiries });
+    const inquiries = await Inquiry.find().sort({ createdAt: -1 }).lean();
+    const chatbots = await Chatbot.find().lean();
+
+    const chatMap = new Map();
+    chatbots.forEach((c) => {
+      if (c.email) {
+        chatMap.set(c.email.trim().toLowerCase(), c.messages || []);
+      }
+    });
+
+    const enrichedInquiries = inquiries.map((inq) => {
+      const emailKey = inq.email ? inq.email.trim().toLowerCase() : "";
+      return {
+        ...inq,
+        chatHistory: chatMap.get(emailKey) || [],
+      };
+    });
+
+    res.status(200).json({ success: true, data: enrichedInquiries });
   } catch (error) {
     res.status(500).json({ success: false, message: "Failed to fetch inquiries" });
   }
@@ -166,10 +183,15 @@ app.put("/api/inquiries/chat", async (req, res) => {
       return res.status(400).json({ success: false, message: "Email and message are required" });
     }
 
-    // Upsert the chatbot record
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Upsert the chatbot record by case-insensitive matching
     const chatbotRecord = await Chatbot.findOneAndUpdate(
-      { email },
-      { $push: { messages: message } },
+      { email: { $regex: new RegExp(`^${cleanEmail}$`, "i") } },
+      { 
+        $setOnInsert: { email: cleanEmail },
+        $push: { messages: message } 
+      },
       { new: true, upsert: true }
     );
 
