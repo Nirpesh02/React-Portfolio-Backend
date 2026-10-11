@@ -125,19 +125,6 @@ router.put('/profile', authMiddleware, upload.single('avatar'), async (req, res)
     if (req.file) {
       const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
       admin.avatar = base64Image;
-
-      // Keep HomeProfile smallImage and largeImage in sync
-      try {
-        let homeProfile = await HomeProfile.findOne();
-        if (!homeProfile) {
-          homeProfile = await HomeProfile.create({});
-        }
-        homeProfile.smallImage = base64Image;
-        homeProfile.largeImage = base64Image;
-        await homeProfile.save();
-      } catch (err) {
-        console.error("HomeProfile sync error:", err);
-      }
     }
 
     await admin.save();

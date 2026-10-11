@@ -333,10 +333,7 @@ app.get("/api/home-profile", async (req, res) => {
       profile = await HomeProfile.create({});
     }
 
-    let admin = await Admin.findOne();
-    const adminAvatar = admin && admin.avatar ? admin.avatar : "";
-
-    const cleanUrl = (url, fallback) => {
+    const cleanUrl = (url, fallback = "") => {
       if (!url) return fallback;
       if (url.startsWith('/uploads/')) {
         const filePath = path.join(__dirname, url);
@@ -345,19 +342,14 @@ app.get("/api/home-profile", async (req, res) => {
       return url;
     };
 
-    let effectiveLarge = profile.largeImage;
-    if (!effectiveLarge || effectiveLarge.includes("bing.net")) {
-      effectiveLarge = adminAvatar || profile.smallImage || "";
-    }
-
-    let effectiveSmall = profile.smallImage;
-    if (!effectiveSmall || effectiveSmall.startsWith("/images/")) {
-      effectiveSmall = adminAvatar || effectiveLarge || "";
+    let effectiveLarge = profile.largeImage || "";
+    if (effectiveLarge.includes("bing.net")) {
+      effectiveLarge = "";
     }
 
     const data = {
-      smallImage: cleanUrl(effectiveSmall, adminAvatar || ""),
-      largeImage: cleanUrl(effectiveLarge, adminAvatar || ""),
+      smallImage: cleanUrl(profile.smallImage, ""),
+      largeImage: cleanUrl(effectiveLarge, ""),
       aboutImage: cleanUrl(profile.aboutImage, "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&q=80"),
     };
 
@@ -383,17 +375,6 @@ app.put("/api/home-profile", uploadMemory.fields([
       const file = req.files.smallImage[0];
       const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
       profile.smallImage = base64;
-
-      // Sync with Admin avatar
-      try {
-        let admin = await Admin.findOne();
-        if (admin) {
-          admin.avatar = base64;
-          await admin.save();
-        }
-      } catch (e) {
-        console.error("Failed to sync admin avatar", e);
-      }
     }
     if (req.files && req.files.largeImage && req.files.largeImage[0]) {
       const file = req.files.largeImage[0];
