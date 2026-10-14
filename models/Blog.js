@@ -60,6 +60,33 @@ const viewerSchema = new mongoose.Schema({
   },
 });
 
+const userReactionSchema = new mongoose.Schema({
+  email: {
+    type: String,
+    required: [true, "Reactor email is required"],
+    lowercase: true,
+    trim: true,
+  },
+  name: {
+    type: String,
+    default: "Google User",
+    trim: true,
+  },
+  avatar: {
+    type: String,
+    default: "",
+  },
+  reactionType: {
+    type: String,
+    enum: ["like", "love", "haha", "wow", "sad"],
+    required: true,
+  },
+  reactedAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
 const blogSchema = new mongoose.Schema(
   {
     title: {
@@ -134,6 +161,8 @@ const blogSchema = new mongoose.Schema(
       wow: { type: Number, default: 0 },
       sad: { type: Number, default: 0 },
     },
+    // User reactions tied to Google accounts
+    reactionsList: [userReactionSchema],
     // Comments list
     comments: [commentSchema],
     // Unique Google viewers list

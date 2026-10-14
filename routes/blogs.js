@@ -547,39 +547,82 @@ router.patch("/:id/toggle-featured", async (req, res) => {
 });
 
 // ----------------------------------------------------
-// 8. POST /api/blogs/:id/react - Facebook-style Reactions
+// 8. POST /api/blogs/:id/react - Facebook-style Reactions Tied to Google Accounts
 // ----------------------------------------------------
 router.post("/:id/react", async (req, res) => {
   try {
-    const { reactionType, previousReaction } = req.body;
+    const { reactionType, email, name, avatar } = req.body;
     const validReactions = ["like", "love", "haha", "wow", "sad"];
+
+    if (!reactionType || !validReactions.includes(reactionType)) {
+      return res.status(400).json({ success: false, message: "Valid reaction type is required" });
+    }
+
+    if (!email || !email.trim()) {
+      return res.status(400).json({ success: false, message: "Google email is required to react" });
+    }
 
     const blog = await Blog.findById(req.params.id);
     if (!blog) {
       return res.status(404).json({ success: false, message: "Blog not found" });
     }
 
-    if (!blog.reactions) {
-      blog.reactions = { like: 0, love: 0, haha: 0, wow: 0, sad: 0 };
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!Array.isArray(blog.reactionsList)) {
+      blog.reactionsList = [];
     }
 
-    // Decrement previous reaction if user is changing or removing their reaction
-    if (previousReaction && validReactions.includes(previousReaction)) {
-      blog.reactions[previousReaction] = Math.max(0, (blog.reactions[previousReaction] || 0) - 1);
+    const existingIndex = blog.reactionsList.findIndex(
+      (r) => r.email && r.email.toLowerCase() === normalizedEmail
+    );
+
+    let currentReaction = null;
+
+    if (existingIndex !== -1) {
+      const existing = blog.reactionsList[existingIndex];
+      if (existing.reactionType === reactionType) {
+        // Toggle OFF: Clicking the same reaction removes it
+        blog.reactionsList.splice(existingIndex, 1);
+        currentReaction = null;
+      } else {
+        // Change reaction: e.g. switch from "like" to "love"
+        existing.reactionType = reactionType;
+        existing.reactedAt = new Date();
+        if (name) existing.name = name.trim();
+        if (avatar) existing.avatar = avatar;
+        currentReaction = reactionType;
+      }
+    } else {
+      // First time this Google account reacts:
+      blog.reactionsList.push({
+        email: normalizedEmail,
+        name: (name || "Google User").trim(),
+        avatar: avatar || "",
+        reactionType,
+        reactedAt: new Date(),
+      });
+      currentReaction = reactionType;
     }
 
-    // Increment new reaction if selected
-    if (reactionType && validReactions.includes(reactionType)) {
-      blog.reactions[reactionType] = (blog.reactions[reactionType] || 0) + 1;
-    }
+    // Recompute total breakdown counts from distinct user reactions
+    blog.reactions = {
+      like: blog.reactionsList.filter((r) => r.reactionType === "like").length,
+      love: blog.reactionsList.filter((r) => r.reactionType === "love").length,
+      haha: blog.reactionsList.filter((r) => r.reactionType === "haha").length,
+      wow: blog.reactionsList.filter((r) => r.reactionType === "wow").length,
+      sad: blog.reactionsList.filter((r) => r.reactionType === "sad").length,
+    };
 
     blog.markModified("reactions");
+    blog.markModified("reactionsList");
     await blog.save();
 
     res.status(200).json({
       success: true,
-      message: "Reaction updated",
+      message: currentReaction ? `Reacted with ${currentReaction}` : "Reaction removed",
       reactions: blog.reactions,
+      userReaction: currentReaction,
+      reactionsList: blog.reactionsList,
     });
   } catch (error) {
     console.error("Error updating reaction:", error);
@@ -592,7 +635,7 @@ router.post("/:id/react", async (req, res) => {
 // ----------------------------------------------------
 router.post("/:id/comments", async (req, res) => {
   try {
-    const { name, email, text } = req.body;
+    const { name, email, text, avatar } = req.body;
 
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, message: "Name is required" });
@@ -606,15 +649,18 @@ router.post("/:id/comments", async (req, res) => {
       return res.status(404).json({ success: false, message: "Blog not found" });
     }
 
-    // Generate neat avatar URL based on commenter's name
+    // Use commenter's Google profile image if provided; fallback to initials avatar
     const encodedName = encodeURIComponent(name.trim());
-    const generatedAvatar = `https://ui-avatars.com/api/?name=${encodedName}&background=6366f1&color=fff&bold=true`;
+    const fallbackAvatar = `https://ui-avatars.com/api/?name=${encodedName}&background=6366f1&color=fff&bold=true`;
+    const finalAvatar = (avatar && typeof avatar === "string" && avatar.trim().length > 0)
+      ? avatar.trim()
+      : fallbackAvatar;
 
     const newComment = {
       name: name.trim(),
       email: (email || "").trim(),
       text: text.trim(),
-      avatar: generatedAvatar,
+      avatar: finalAvatar,
       createdAt: new Date(),
     };
 
