@@ -98,6 +98,9 @@ app.post("/api/contacts", async (req, res) => {
 const authRouter = require('./routes/auth').router;
 app.use('/api/auth', authRouter);
 
+const blogsRouter = require('./routes/blogs');
+app.use('/api/blogs', blogsRouter);
+
 const Inquiry = require("./models/Inquiry");
 const Chatbot = require("./models/Chatbot");
 
