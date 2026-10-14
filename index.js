@@ -34,7 +34,12 @@ app.use(
         hostname.endsWith(".onrender.com") ||
         hostname.endsWith(".netlify.app") ||
         hostname === "onrender.com" ||
-        hostname === "netlify.app";
+        hostname === "netlify.app" ||
+        hostname === "localhost" ||
+        hostname === "127.0.0.1" ||
+        hostname.startsWith("192.168.") ||
+        hostname.startsWith("10.") ||
+        hostname.startsWith("172.");
 
       if (isAllowedOrigin) {
         callback(null, true);

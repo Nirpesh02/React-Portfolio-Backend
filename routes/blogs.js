@@ -684,9 +684,58 @@ router.post("/:id/comments", async (req, res) => {
 // ----------------------------------------------------
 router.delete("/:id/comments/:commentId", async (req, res) => {
   try {
+    const { email } = req.body || {};
+    const authHeader = req.headers.authorization;
+
+    // Check if request is authenticated as admin
+    let isAdmin = false;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      try {
+        const jwt = require("jsonwebtoken");
+        const token = authHeader.split(" ")[1];
+        const decoded = jwt.verify(
+          token,
+          process.env.JWT_SECRET || "nirpesh_jwt_secret_portfolio_2026"
+        );
+        if (decoded) isAdmin = true;
+      } catch (e) {
+        isAdmin = false;
+      }
+    }
+
     const blog = await Blog.findById(req.params.id);
     if (!blog) {
       return res.status(404).json({ success: false, message: "Blog not found" });
+    }
+
+    const targetComment = blog.comments.find(
+      (c) => c._id.toString() === req.params.commentId
+    );
+
+    if (!targetComment) {
+      return res.status(404).json({ success: false, message: "Comment not found" });
+    }
+
+    // Permission Check:
+    // Admin can delete any comment for moderation.
+    // Client can ONLY delete their own comment (email must match).
+    if (!isAdmin) {
+      if (!email || !email.trim()) {
+        return res.status(401).json({
+          success: false,
+          message: "Google email is required to delete your comment",
+        });
+      }
+
+      const clientEmail = email.trim().toLowerCase();
+      const commentAuthorEmail = (targetComment.email || "").trim().toLowerCase();
+
+      if (!commentAuthorEmail || commentAuthorEmail !== clientEmail) {
+        return res.status(403).json({
+          success: false,
+          message: "Permission denied: You can only delete your own comments!",
+        });
+      }
     }
 
     blog.comments = blog.comments.filter(
@@ -696,7 +745,7 @@ router.delete("/:id/comments/:commentId", async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "Comment deleted",
+      message: "Comment deleted successfully",
       comments: blog.comments,
     });
   } catch (error) {
